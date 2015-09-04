@@ -1,2 +1,2 @@
 # ocular-brainfuck
-A JavaScript interprerer for brainfuck with some visual aids for developing programs
+A JavaScript interpreter for brainfuck with some visual aids for developing programs
