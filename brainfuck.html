@@ -1,0 +1,354 @@
+<html>
+
+<head>
+
+   <META http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+
+    <style rel="stylesheet">
+    
+        ::-moz-selection { background: orange; }
+        ::selection { background: orange; }
+    
+        textarea {
+            border-radius: 3px;
+            border: 2px solid grey;
+            background-color: silver;
+            font-size: 11pt;
+        }
+        
+        table {
+            border-collapse:collapse;
+        }
+        
+        td {
+             border: 2px solid grey;
+             padding : 0px;
+             width: 46px;
+             height: 20px;
+             font-size: 11pt;
+             font-family : Courier;
+             text-align: center;
+        } 
+    </style>
+   
+    <title>
+        Brainfuck Interpreter
+    </title>
+
+</head>
+
+<body>
+    <div style="width:1240px; margin-left:auto; margin-right:auto">
+        <p>
+        <input type="button" value="Step" onclick="stepper()" />
+        <input type="button" value="Run" onclick="execute()" />
+        <input type="button" value="Pause" onclick="stop = 1" />
+        <input type="button" value="Continue" onclick="cont()" />
+        <input type="button" value="Reset" onclick="location.reload()" />
+        <input type="checkbox" id="wb" />wrap bytes
+        <input type="checkbox" id="single" checked />single steps
+        <input type="checkbox" id="hidecells" onChange="cellView()" />hide cells
+        
+        <span style="float:right">delay: <span id="ms">100</span>ms
+        <input id="Pause" type="range" max="500" min="0" value="100"
+            onChange="document.getElementById('ms').innerHTML=document.getElementById('Pause').value" />
+        </p>
+
+        <p>
+        cells (
+        <span id="cellinfo" style="font-family:Courier; font-size:12pt">
+            &nbsp;&nbsp;&nbsp;&nbsp;1/&nbsp;&nbsp;&nbsp;&nbsp;1 =&nbsp;&nbsp;&nbsp;&nbsp;0
+        </span>)
+        <br>
+        <span id="tape"><table><tr><td bgcolor="orange">0</td></tr></table></span>
+        </p>
+    </div>
+    
+    <div style="width:1240px; margin-left:auto; margin-right:auto">
+
+        <div style="float:left">
+            <p>
+            program
+            <br>
+            <textarea id="program" rows="21" cols="81" spellcheck="false" onChange="ini = false"></textarea>
+            </p>
+
+            <p>
+            pure code (<span id="pureBF">0</span> commands)
+            <br>
+            <textarea id="pure" rows="5" cols="81" spellcheck="false"></textarea>
+            </p>
+        </div>
+
+        <div style="float:right">
+            <p>
+            output
+            <br>
+            <textarea id="output" rows="13" cols="50" spellcheck="false"></textarea>
+            </p>
+
+            <p>
+            input
+            <br>
+            <textarea id="input" rows="13" cols="50" spellcheck="false"></textarea>
+            </p>
+        </div>
+        
+    </div>
+
+    <script>
+        
+        document.getElementById("ms").innerHTML=document.getElementById("Pause").value
+
+        document.getElementById("pure").value="";
+        document.getElementById("output").value="";
+
+        var program, pureprogram, progpos = 0, tape = [0], tapepos = 0;
+        var input, inpos = 0, interval, selector, reference, speedup, repeat, stop = 0, ini = 0, parsed, cinvisible = false;
+        var spacer = [ "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;", "&nbsp;&nbsp;&nbsp;&nbsp;", "&nbsp;&nbsp;&nbsp;", "&nbsp;&nbsp;", "&nbsp;", "" ];
+
+        function init()
+        {
+            selector = document.getElementById("program");
+            program = selector.value;
+            document.getElementById("pure").value = pureprogram = program.replace(/[^<>.,+\-[\]]/gm,"");
+            document.getElementById("pureBF").innerHTML = document.getElementById("pure").value.length;
+            document.getElementById("output").value = "";
+            cinvisible = document.getElementById("hidecells").checked = false;
+
+            tape = [0];
+            progpos = 0;
+            tapepos = 0;
+            stop = 0;
+            input = document.getElementById("input").value.split("");
+            inpos = 0;
+
+            parsed = parser();
+            
+            ini = true;           
+        }
+
+        function execute()
+        {
+            init();
+            
+            if(!parsed) return;
+
+            next();
+
+            return;
+        }
+        
+        function cont()
+        {
+            stop = false;
+            
+            next();
+            
+        }
+        
+        function stepper()
+        {
+            if(!ini) init();
+            
+            if(!parsed) return;
+            
+            stop = true;
+            
+            next();
+        }
+        
+        function cellView()
+        {
+            cinvisible = document.getElementById("hidecells").checked;
+            
+            document.getElementById("tape").innerHTML = cinvisible ? "" : tapetable();
+        }
+        
+        function tapetable()
+        {
+            var table = "<table><tr>";
+            
+            for(var i = 0; i < tape.length; ++i)
+            {
+                table =  table + '<td bgcolor="' + (i == tapepos ? 'orange' : 'silver' ) + '">' + tape[i] + '</td>';
+                if((i+1)%25 == 0) table = table + "</tr><tr>";
+            }
+        
+            return table + "</tr></table>"; 
+        }
+
+        function parser()
+        {
+            // create array for speedup (same length as program itself)
+            speedup=pureprogram.split("");
+            reference=pureprogram.split("");
+
+            var i, j, l = pureprogram.length, same, open, refpos = 0;
+            
+            for(i = 0 ; i < program.length; ++i) if(program[i].match(/[<>.,+\-[\]]/)) reference[refpos++] = i;
+            
+            for(i = 0; i < l; ++i)
+            {
+                same = 1;
+                
+                while( i+same < l && pureprogram[i] == pureprogram[i+same]) ++same;
+
+                speedup[i] = same;
+            }
+
+            // find matching brackets for quick jumps
+            for(i = 0; i < l; ++i)
+            {
+                if(pureprogram[i] == '[')
+                {
+                    // find [-] or [+]
+                    if( i+2 < l && (pureprogram[i+1] == "-" || pureprogram[i+1] == "+") && pureprogram[i+2] == "]" )
+                    {
+                        speedup[i] = 0;
+                        continue;
+                    }
+
+                    // find [>] 
+                    if( i+2 < l && pureprogram[i+1] == ">" && pureprogram[i+2] == "]" )
+                    {
+                        speedup[i] = -1;
+                        continue;
+                    }
+
+                    // find [<]
+                    if( i+2 < l && pureprogram[i+1] == "<" && pureprogram[i+2] == "]" )
+                    {
+                        speedup[i] = -2;
+                        continue;
+                    }
+
+                    j    = 1;
+                    open = 1;
+                    while(i+j < l && open != 0)
+                    {
+                        if(pureprogram[i+j] == ']') --open;
+                        if(pureprogram[i+j] == '[') ++open;
+                        ++j;
+                    }
+
+                    if(i+j >= l && open != 0)
+                    {
+                        document.getElementById("output").value="ERROR! Mismatched brackets.";
+                        return false;
+                    }
+
+                    speedup[i]     = i+j;
+                    speedup[i+j-1] = i+1;
+                }
+            }
+
+            return true;
+        }
+
+        function next()
+        {
+            if(progpos >= pureprogram.length) return;
+        
+            var single    = document.getElementById("single").checked;
+            var wrapbytes = document.getElementById("wb").checked;
+            
+            repeat = speedup[progpos];
+            
+            selector.focus();
+            selector.selectionStart = reference[progpos];
+            selector.selectionEnd = reference[progpos]+1;
+            
+            switch(pureprogram[progpos])
+            {
+                case '>'    :   tapepos+=single?1:repeat;
+                                while(tapepos >= tape.length) tape.push(0);
+                                if(tapepos >= 30000)
+                                {
+                                    document.getElementById("output").value="ERROR! max length of tape reached.";
+                                    stop = 1;
+                                    break;
+                                }
+                                progpos+=single?1:repeat;
+                                break;
+                case '<'    :   tapepos-=single?1:repeat;
+                                if(tapepos < 0)
+                                {
+                                    do
+                                    {
+                                        tape.unshift(0);
+                                        ++tapepos;
+                                     }
+                                     while(tapepos < 0);
+                                }
+                                progpos+=single?1:repeat;
+                                break;
+                case '['    :   if(!single)
+                                {    
+                                    if(repeat == 0)
+                                    {
+                                        tape[tapepos] = 0;
+                                        progpos += 3;
+                                        break;
+                                    }
+                                    if(repeat == -1)
+                                    {
+                                        while(tapepos < tape.length && tape[tapepos] != 0) ++tapepos;
+                                        if(tapepos == tape.length) tape.push(0);
+                                        progpos += 3;
+                                        break;
+                                    }
+                                    if(repeat == -2)
+                                    {
+                                        while(tapepos >= 0 && tape[tapepos] != 0) --tapepos;
+                                        if(tapepos < 0)
+                                        {
+                                            tapepos = 0;
+                                            tape.unshift(0);
+                                        }
+                                        progpos += 3;
+                                        break;
+                                    }
+                                }
+                                if(tape[tapepos] != 0) ++progpos;
+                                else progpos = repeat;
+                                break;
+                case ']'    :   if(tape[tapepos] != 0) progpos = repeat;
+                                else ++progpos;
+                                break;
+                case '+'    :   tape[tapepos]+=single?1:repeat;
+                                progpos+=single?1:repeat;
+                                if(wrapbytes) tape[tapepos]%=256;
+                                break;
+                case '-'    :   tape[tapepos]-=single?1:repeat;
+                                progpos+=single?1:repeat;
+                                if(wrapbytes) tape[tapepos]=(tape[tapepos]+1024)%256;
+                                break;
+                case '.'    :   document.getElementById("output").value=document.getElementById("output").value + String.fromCharCode(tape[tapepos]);
+                                ++progpos;
+                                break;
+                case ','    :   if(inpos < input.length) tape[tapepos]=input[inpos++].charCodeAt();
+                                ++progpos;
+                                break;
+                default     :   ++progpos;break;
+
+            }
+
+            document.getElementById("cellinfo").innerHTML = spacer[tapepos.toString().length] + tapepos 
+                                                          + "/"
+                                                          + spacer[tape.length.toString().length] + tape.length
+                                                          + " = "
+                                                          + spacer[tape[tapepos].toString().length] + tape[tapepos];
+                                
+            if(!cinvisible) document.getElementById("tape").innerHTML = tapetable();    
+            
+
+            if(!stop) setTimeout(next, document.getElementById("Pause").value);
+        }
+
+    </script>
+
+</body>
+
+
+</html>
