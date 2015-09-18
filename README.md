@@ -6,7 +6,7 @@ It displays the tape, which cell the pointer is currently pointing to, and which
 
 You can run, pause and continue the script, or you can execute it step by step.
 
-You can set the delay between two commands from 500 ms to 0 ms, where a value of 0 is of course just an indication for "as fast as your browsr can go"
+You can set the delay between two commands from 500ms to 0ms, where a value of 0 is of course just an indication for "as fast as your browser can go"
 
 Porgrams can be run in single steps or in a sped up mode which executes blocks of equal commands like `+++++++` or `<<<<<<` at once. In  this mode the command blocks `[-]`. `[+]`. `[<]` and `[>]` are also sped up.
 
