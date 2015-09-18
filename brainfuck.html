@@ -203,23 +203,26 @@
                 if(pureprogram[i] == '[')
                 {
                     // find [-] or [+]
-                    if( i+2 < l && (pureprogram[i+1] == "-" || pureprogram[i+1] == "+") && pureprogram[i+2] == "]" )
+                    if( i+1 < l && (pureprogram[i+1] == "-" || pureprogram[i+1] == "+") && pureprogram[i+2] == "]" )
                     {
                         speedup[i] = 0;
+                        speedup[i+2] = i+1;
                         continue;
                     }
 
                     // find [>] 
-                    if( i+2 < l && pureprogram[i+1] == ">" && pureprogram[i+2] == "]" )
+                    if( i+1 < l && pureprogram[i+1] == ">" && pureprogram[i+2] == "]" )
                     {
                         speedup[i] = -1;
+                        speedup[i+2] = i+1;
                         continue;
                     }
 
                     // find [<]
-                    if( i+2 < l && pureprogram[i+1] == "<" && pureprogram[i+2] == "]" )
+                    if( i+1 < l && pureprogram[i+1] == "<" && pureprogram[i+2] == "]" )
                     {
                         speedup[i] = -2;
+                        speedup[i+2] = i+1;
                         continue;
                     }
 
@@ -248,8 +251,6 @@
 
         function next()
         {
-            if(progpos >= pureprogram.length) return;
-        
             var single    = document.getElementById("single").checked;
             var wrapbytes = document.getElementById("wb").checked;
             
@@ -259,6 +260,8 @@
             selector.selectionStart = reference[progpos];
             selector.selectionEnd = reference[progpos]+1;
             
+            if(progpos >= pureprogram.length) return;
+        
             switch(pureprogram[progpos])
             {
                 case '>'    :   tapepos+=single?1:repeat;
@@ -283,7 +286,7 @@
                                 }
                                 progpos+=single?1:repeat;
                                 break;
-                case '['    :   if(!single)
+                case '['   :    if(!single)
                                 {    
                                     if(repeat == 0)
                                     {
@@ -295,7 +298,7 @@
                                     {
                                         while(tapepos < tape.length && tape[tapepos] != 0) ++tapepos;
                                         if(tapepos == tape.length) tape.push(0);
-                                        progpos += 3;
+                                        progpos += 3;flag=1
                                         break;
                                     }
                                     if(repeat == -2)
@@ -311,7 +314,9 @@
                                     }
                                 }
                                 if(tape[tapepos] != 0) ++progpos;
-                                else progpos = repeat;
+                                else
+                                if(repeat > 0) progpos = repeat;
+                                else progpos += 3;
                                 break;
                 case ']'    :   if(tape[tapepos] != 0) progpos = repeat;
                                 else ++progpos;
@@ -334,7 +339,7 @@
 
             }
 
-            document.getElementById("cellinfo").innerHTML = spacer[tapepos.toString().length] + tapepos 
+            document.getElementById("cellinfo").innerHTML = spacer[(tapepos + 1).toString().length] + (tapepos + 1)
                                                           + "/"
                                                           + spacer[tape.length.toString().length] + tape.length
                                                           + " = "
